@@ -5,15 +5,37 @@ provider "aws" {
   version = "~> 2.0"
 }
 
-resource "aws_instance" "tf_ami" {
-  ami                    = "ami-01a6e31ac994bbc09"
-  instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.web_dmz.id]
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnet_ids" "default" {
+  vpc_id = data.aws_vpc.default.id
+}
+
+resource "aws_launch_configuration" "tf_ami" {
+  image_id        = "ami-01a6e31ac994bbc09"
+  instance_type   = "t2.micro"
+  security_groups = [aws_security_group.web_dmz.id]
 
   user_data = file("user_data.sh")
 
-  tags = {
-    Name = "tf-WebServer"
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_group" "web_cluster" {
+  launch_configuration   = aws_launch_configuration.tf_ami.id
+  vpc_zone_identifier    = data.aws_subnet_ids.default.ids
+
+  min_size = 2
+  max_size = 10
+
+  tag {
+    key                 = "Name"
+    propagate_at_launch = true
+    value               = "tf-WebServer"
   }
 }
 

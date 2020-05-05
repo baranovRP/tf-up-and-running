@@ -1,9 +1,22 @@
 ###
 provider "aws" {
-  version    = "~> 2.0"
-  region     = "eu-west-2"
+  version                 = "~> 2.0"
+  region                  = "eu-west-2"
   shared_credentials_file = "~/.aws/credentials"
-  profile    = "ora2postgres"
+  profile                 = "ora2postgres"
+}
+
+terraform {
+  required_version = "~> v0.12"
+
+  backend "s3" {
+    bucket = "tf-state-eu-west-2-rnbv"
+    key    = "global/s3/terraform.tfstate"
+    region = "eu-west-2"
+
+    dynamodb_table = "tf-locks-eu-west-2-rnbv"
+    encrypt        = true
+  }
 }
 
 resource "aws_s3_bucket" "tf_state" {
@@ -36,13 +49,3 @@ resource "aws_dynamodb_table" "tf_locks" {
   }
 }
 
-terraform {
-  backend "s3" {
-    bucket = "tf-state-eu-west-2-rnbv"
-    key    = "global/s3/terraform.tfstate"
-    region = "eu-west-2"
-
-    dynamodb_table = "tf-locks-eu-west-2-rnbv"
-    encrypt        = true
-  }
-}

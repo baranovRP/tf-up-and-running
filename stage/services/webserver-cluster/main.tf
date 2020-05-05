@@ -1,8 +1,23 @@
 ###
 provider "aws" {
-  region  = "eu-west-2"
-  profile = "ora2postgres"
-  version = "~> 2.0"
+  version                 = "~> 2.0"
+
+  region                  = "eu-west-2"
+  shared_credentials_file = "~/.aws/credentials"
+  profile                 = "ora2postgres"
+}
+
+terraform {
+  required_version = "~> v0.12"
+
+  backend "s3" {
+    bucket = "tf-state-eu-west-2-rnbv"
+    key    = "stage/services/webserver-cluster/terraform.tfstate"
+    region = "eu-west-2"
+
+    dynamodb_table = "tf-locks-eu-west-2-rnbv"
+    encrypt        = true
+  }
 }
 
 data "aws_vpc" "default" {
@@ -18,7 +33,7 @@ resource "aws_launch_configuration" "tf_ami" {
   instance_type   = "t2.micro"
   security_groups = [aws_security_group.web_dmz.id]
 
-  user_data = file("user_data.sh")
+  user_data = data.template_file.user_data.rendered
 
   lifecycle {
     create_before_destroy = true
@@ -33,7 +48,7 @@ resource "aws_autoscaling_group" "web_cluster" {
   health_check_type = "ELB"
 
   min_size = 2
-  max_size = 10
+  max_size = 4
 
   tag {
     key                 = "Name"
@@ -142,5 +157,25 @@ resource "aws_lb_listener_rule" "asg" {
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.asg.arn
+  }
+}
+
+data "terraform_remote_state" "db" {
+  backend = "s3"
+
+  config = {
+    bucket = "tf-state-eu-west-2-rnbv"
+    key    = "stage/data-stores/mysql/terraform.tfstate"
+    region = "eu-west-2"
+  }
+}
+
+data "template_file" "user_data" {
+  template = file("user_data.sh")
+
+  vars = {
+    server_port = var.server_port
+    db_address  = data.terraform_remote_state.db.outputs.address
+    db_port     = data.terraform_remote_state.db.outputs.port
   }
 }

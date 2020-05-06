@@ -20,6 +20,7 @@ terraform {
 }
 
 resource "aws_db_instance" "tf_db" {
+  skip_final_snapshot = true
   identifier_prefix = "tf-eu-west-2-rnbv"
   engine            = "mysql"
   allocated_storage = 10
